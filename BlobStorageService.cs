@@ -1,0 +1,5 @@
+using Azure.Storage.Blobs;using Azure.Storage.Blobs.Models;
+namespace RaceDay.Api.Services;
+public class BlobStorageService(IConfiguration config) {
+ public async Task<string> UploadAsync(IFormFile file,CancellationToken ct){if(file.Length==0||file.Length>5*1024*1024)throw new InvalidOperationException("Image must be between 1 byte and 5 MB.");var allowed=new[]{"image/jpeg","image/png","image/webp"};if(!allowed.Contains(file.ContentType))throw new InvalidOperationException("Only JPG, PNG and WEBP images are allowed.");var cs=config["AzureBlob:ConnectionString"];if(string.IsNullOrWhiteSpace(cs))throw new InvalidOperationException("Azure Blob Storage is not configured.");var container=new BlobContainerClient(cs,config["AzureBlob:Container"]??"raceday");await container.CreateIfNotExistsAsync(PublicAccessType.None,cancellationToken:ct);var name=$"{Guid.NewGuid():N}{Path.GetExtension(file.FileName)}";var blob=container.GetBlobClient(name);await using var stream=file.OpenReadStream();await blob.UploadAsync(stream,new BlobHttpHeaders{ContentType=file.ContentType},cancellationToken:ct);return blob.Uri.ToString();}
+}

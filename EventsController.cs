@@ -1,0 +1,10 @@
+using Microsoft.AspNetCore.Mvc; using Microsoft.EntityFrameworkCore; using Microsoft.AspNetCore.Authorization; using RaceDay.Api.Data; using RaceDay.Api.Models;
+namespace RaceDay.Api.Controllers;
+[ApiController,Route("api/events")]
+public class EventsController(RaceDayDbContext db):ControllerBase {
+ [HttpGet] public async Task<IActionResult> List([FromQuery]string? type,[FromQuery]string? location) { var q=db.Events.Include(x=>x.Categories).Where(x=>x.Date>=DateTime.UtcNow); if(!string.IsNullOrWhiteSpace(type))q=q.Where(x=>x.EventType==type); if(!string.IsNullOrWhiteSpace(location))q=q.Where(x=>x.Location.Contains(location)); return Ok(await q.OrderBy(x=>x.Date).ToListAsync()); }
+ [HttpGet("{id:int}")] public async Task<IActionResult> Get(int id){var e=await db.Events.Include(x=>x.Categories).FirstOrDefaultAsync(x=>x.Id==id);return e is null?NotFound():Ok(e);}
+ [Authorize(Roles="Organiser,Admin"),HttpPost] public async Task<IActionResult> Create(EventRequest r){var e=new RaceEvent{Name=r.Name,Description=r.Description,Date=r.Date,Location=r.Location,Distance=r.Distance,EventType=r.EventType,OrganiserId=User.Identity?.Name??""};db.Events.Add(e);await db.SaveChangesAsync();return CreatedAtAction(nameof(Get),new{id=e.Id},e);}
+ [Authorize(Roles="Organiser,Admin"),HttpPut("{id:int}")] public async Task<IActionResult> Update(int id,EventRequest r){var e=await db.Events.FindAsync(id);if(e is null)return NotFound();if(!User.IsInRole("Admin")&&e.OrganiserId!=User.Identity?.Name)return Forbid();e.Name=r.Name;e.Description=r.Description;e.Date=r.Date;e.Location=r.Location;e.Distance=r.Distance;e.EventType=r.EventType;await db.SaveChangesAsync();return NoContent();}
+ [Authorize(Roles="Organiser,Admin"),HttpDelete("{id:int}")] public async Task<IActionResult> Delete(int id){var e=await db.Events.FindAsync(id);if(e is null)return NotFound();if(!User.IsInRole("Admin")&&e.OrganiserId!=User.Identity?.Name)return Forbid();db.Events.Remove(e);await db.SaveChangesAsync();return NoContent();}
+}
